@@ -1,0 +1,881 @@
+<html>
+
+<head>
+<title>ICG WebGL &mdash; HW1</title>
+<meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+
+<script type="text/javascript" src="./js/glMatrix-0.9.5.min.js"></script>
+<script type="text/javascript" src="./js/webgl-utils.js"></script>
+
+<!-- 
+    TODO HERE: 
+    modify fragment shader or write another one
+    to implement flat, gouraud and phong shading
+ -->
+ <!-- 
+    TODO HERE:
+    modify vertex shader or write another one
+    to implement flat, gouraud and phong shading
+
+    NOTE:
+    if you want to write bonus part (texture mapping),
+    only Teapot.json has extra attribute "vertexTextureCoords"
+    which is used for texture mappping.
+    
+    vertex shader 計算顏色＝做 gouraud shading
+    gouraud  = ambientt + diffuse + specular
+    vec3 light = vec3(30, 20,-25);  右上方打光
+    vec3 lightColor  vec3(1,0); light color = white ( 三個都是1.0);
+    vec3 mcVertex = (uMVMatrix * vec4(aVertexPosition, 1.0)).xyz; 世界座標系
+    vec3 mcNormal 不會被translate 影響 lighting only in the relation with suface normal
+    mat3 normalMatrix = mat3(uMVMat) 只有左上角3*3 (去掉 translation)
+ -->
+
+ <script id="flat_fragmentShader" type="fragment">
+    #extension GL_OES_standard_derivatives : enable
+    
+    precision mediump float;
+    //varying vec4 fragcolor;
+    varying vec4 vFrontColor;
+    varying vec4 objectpos;
+    varying vec3 vNormal;
+
+    //uniform mat4 uMVMatrix;
+    //uniform mat4 uPMatrix;
+
+    void main(void) {
+        vec3 light = vec3(5, 0,-1); 
+        vec3 light2 = vec3(30, 20, -25);
+        vec3 light3 = vec3(-30, 20, -25);
+        vec3 lightColor = vec3(1.0, 1.0, 1.0);
+        //vec3 mvVertex = (uMVMatrix * vec4(aVertexPosition, 1.0)).xyz;
+        //mat3 normalMatrix = mat3(uMVMatrix);
+        //vec3 mvNormal = normalMatrix * aVertexNormal;
+        //normal 
+
+        vec3 U = dFdx(objectpos.xyz);
+        vec3 V = dFdy(objectpos.xyz);
+        vec3 N = normalize(cross(U, V));
+        vec3 L = normalize(light- objectpos.xyz);
+        vec3 H = normalize(light- objectpos.xyz - objectpos.xyz);
+
+        vec3 L2 = normalize(light2 - objectpos.xyz);
+        vec3 H2 = normalize(light2 - objectpos.xyz - objectpos.xyz);
+
+        vec3 L3 = normalize(light3 - objectpos.xyz);
+        vec3 H3 = normalize(light3 - objectpos.xyz - objectpos.xyz);
+
+
+        //vec3 flatshading = vec3(0.0);
+        float ka = 0.1;
+        float kd = 0.6;
+        float ks = 0.3;
+        vec3 ambient = lightColor * ka;
+        float cos = max(0.0, dot(L,N));
+        vec3 diffuse = lightColor * kd * cos;
+        float cosAlpha = max(0.0, dot(H,N));
+        vec3 specular = lightColor * ks * pow(cosAlpha, 16.0);
+        if(dot(L, N) < 0.0){
+            specular = vec3(0.0);
+        }
+        float cos2 = max(0.0, dot(L2,N));
+        vec3 diffuse2 = lightColor * kd * cos2;
+        float cosAlpha2 = max(0.0, dot(H2,N));
+        vec3 specular2 = lightColor * ks * pow(cosAlpha2, 16.0);
+        if(dot(L2, N) < 0.0){
+            specular2 = vec3(0.0);
+        }
+
+        float cos3 = max(0.0, dot(L3,N));
+        vec3 diffuse3 = lightColor * kd * cos3;
+        float cosAlpha3 = max(0.0, dot(H3,N));
+        vec3 specular3 = lightColor * ks * pow(cosAlpha3, 16.0);
+        if(dot(L3, N) < 0.0){
+            specular3 = vec3(0.0);
+        }
+        //flatshading = vFrontColor*(ambient + diffuse + specular); 
+
+        
+        gl_FragColor = vec4(vFrontColor.rgb*(ambient + diffuse + specular + diffuse2 + specular2 + diffuse3 + specular3), vFrontColor.a);
+        //
+    }
+</script>
+
+
+<script id="flat_vertexShader" type="vertex">
+    attribute vec3 aVertexPosition;
+    attribute vec4 aFrontColor;
+    attribute vec3 aVertexNormal;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+    
+    //varying vec4 fragcolor;
+    varying vec4 vFrontColor;
+    varying vec4 objectpos;
+    varying vec3 vNormal;
+
+    void main(void) {
+        //gl_FragColor = fragcolor;
+        objectpos = uMVMatrix * vec4(aVertexPosition, 1.0);
+        gl_Position = uPMatrix * objectpos;
+        vFrontColor = aFrontColor;
+        vNormal = aVertexNormal;
+    }
+</script>
+
+
+
+<script id="phong_fragmentShader" type="fragment">
+    #extension GL_OES_standard_derivatives : enable
+    
+    precision mediump float;
+    //varying vec4 fragcolor;
+    varying vec4 vFrontColor;
+    varying vec3 vVertexNormal;
+    varying vec4 objectpos;
+
+    varying mat3 umvmatrix;
+
+    void main(void) {
+        vec3 light = vec3(5, 0, -1);
+        vec3 light2 = vec3(30, 20 , -25); 
+        vec3 light3 = vec3(-30, 20, -25);
+        vec3 lightColor = vec3(1.0, 1.0, 1.0);
+        //vec3 mvVertex = (uMVMatrix * vec4(aVertexPosition, 1.0)).xyz;
+        //mat3 normalMatrix = mat3(uMVMatrix);
+        //vec3 mvNormal = normalMatrix * aVertexNormal;
+        //normal 
+
+        vec3 N = normalize(umvmatrix * vVertexNormal);
+        vec3 L = normalize(light- objectpos.xyz);
+        vec3 H = normalize(light- objectpos.xyz - objectpos.xyz);
+
+        vec3 L2 = normalize(light2- objectpos.xyz);
+        vec3 H2 = normalize(light2- objectpos.xyz - objectpos.xyz);
+
+        vec3 L3 = normalize(light3- objectpos.xyz);
+        vec3 H3 = normalize(light3- objectpos.xyz - objectpos.xyz);
+
+        //vec3 flatshading = vec3(0.0);
+        float ka = 0.1;
+        float kd = 0.6;
+        float ks = 0.3;
+        vec3 ambient = lightColor * ka;
+        float cos = max(0.0, dot(L,N));
+        vec3 diffuse = lightColor * kd * cos;
+        float cosAlpha = max(0.0, dot(H,N));
+        vec3 specular = lightColor * ks * pow(cosAlpha, 16.0);
+        if(dot(L, N) < 0.0){
+            specular = vec3(0.0);
+        }
+
+        float cos2 = max(0.0, dot(L2,N));
+        vec3 diffuse2 = lightColor * kd * cos2;
+        float cosAlpha2 = max(0.0, dot(H2,N));
+        vec3 specular2 = lightColor * ks * pow(cosAlpha2, 16.0);
+        if(dot(L2, N) < 0.0){
+            specular2 = vec3(0.0);
+        }
+        float cos3 = max(0.0, dot(L3,N));
+        vec3 diffuse3 = lightColor * kd * cos3;
+        float cosAlpha3 = max(0.0, dot(H3,N));
+        vec3 specular3 = lightColor * ks * pow(cosAlpha3, 16.0);
+        if(dot(L3, N) < 0.0){
+            specular3 = vec3(0.0);
+        }
+        //flatshading = vFrontColor*(ambient + diffuse + specular + diffuse2 + specular2); 
+
+        
+        gl_FragColor = vec4(vFrontColor.rgb*(ambient + diffuse + specular+ diffuse2 + specular2 + diffuse3 + specular3), vFrontColor.a);
+        //
+    }
+</script>
+
+
+<script id="phong_vertexShader" type="vertex">
+    attribute vec3 aVertexPosition;
+    attribute vec4 aFrontColor;
+    attribute vec3 aVertexNormal;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+    
+    //varying vec4 fragcolor;
+    varying vec4 vFrontColor;
+    varying vec4 objectpos;
+    varying vec3 vVertexNormal;
+    varying mat3 umvmatrix;
+
+    void main(void) {
+        //gl_FragColor = fragcolor;
+        objectpos = uMVMatrix * vec4(aVertexPosition, 1.0);
+        gl_Position = uPMatrix * objectpos;
+        vFrontColor = aFrontColor;
+        vVertexNormal = aVertexNormal;
+        umvmatrix = mat3(uMVMatrix);
+
+    }
+</script>
+
+
+
+<script id="gouraud_fragmentShader" type="fragment">
+    precision mediump float;
+
+    varying vec4 fragcolor;
+
+    void main(void) {
+        gl_FragColor = fragcolor;
+    }
+</script>
+
+
+<script id="gouraud_vertexShader" type="vertex">
+    attribute vec3 aVertexPosition;
+    attribute vec3 aFrontColor;
+
+    attribute vec3 aVertexNormal;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+
+	varying vec4 fragcolor;
+
+    void main(void) {
+
+        vec3 light = vec3(5, 0,-1); 
+        vec3 light2 = vec3(30, 20, -25);
+        vec3 light3 = vec3(-30, 20, -25);
+        vec3 lightColor = vec3(1.0, 1.0, 1.0);
+        
+        vec3 mvVertex = (uMVMatrix * vec4(aVertexPosition, 1.0)).xyz;
+        mat3 normalMatrix = mat3(uMVMatrix);
+        //vec3 mvNormal = normalMatrix * aVertexNormal;
+
+        vec3 V = -normalize(mvVertex);
+        vec3 N = normalize(normalMatrix * aVertexNormal);
+        vec3 L = normalize(light - mvVertex);
+        vec3 L2 = normalize(light2 - mvVertex);
+        vec3 L3 = normalize(light3 - mvVertex);
+        vec3 H = normalize(L+V);
+        vec3 H2 = normalize(L2+V);
+        vec3 H3 = normalize(L3+V);
+
+        vec3 gouraud = vec3(0.0);
+
+        float ka = 0.1;
+        float kd = 0.6;
+        float ks = 0.3;
+
+        //不管幾個光源 ambient light 是定值
+        //要很多光源 用for 迴圈寫 疊加在一起(diffuse and specular)
+
+        vec3 ambient = lightColor * ka * aFrontColor;
+        float cos = max(0.0, dot(L , N));
+        vec3 diffuse = lightColor * kd * aFrontColor * cos;
+        float cosAlpha = max(0.0, dot(H,N));
+        vec3 specular = lightColor * ks * pow(cosAlpha, 16.0);
+        if(dot(L, N) < 0.0){
+            specular = vec3(0.0);
+        }
+        float cos2 = max(0.0, dot(L2 , N));
+        vec3 diffuse2 = lightColor * kd * aFrontColor * cos2;
+        float cosAlpha2 = max(0.0, dot(H2,N));
+        vec3 specular2 = lightColor * ks * pow(cosAlpha2, 16.0);
+        if(dot(L2, N) < 0.0){
+            specular2 = vec3(0.0);
+        }
+
+        float cos3 = max(0.0, dot(L3 , N));
+        vec3 diffuse3 = lightColor * kd * aFrontColor * cos3;
+        float cosAlpha3 = max(0.0, dot(H3,N));
+        vec3 specular3 = lightColor * ks * pow(cosAlpha3, 16.0);
+        if(dot(L3, N) < 0.0){
+            specular3 = vec3(0.0);
+        }
+        gouraud = ambient + diffuse + specular + diffuse2 + specular2 + diffuse3 + specular3; 
+
+        
+        fragcolor = vec4(gouraud, 1.0);
+        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+    }
+</script>
+<script type="text/javascript">
+    // common variables
+    var gl;
+    //var shaderProgram;
+
+    var mvMatrix = mat4.create();
+    var pMatrix  = mat4.create();
+
+    var vertexPositionBuffer = [];
+    var vertexNormalBuffer = [];
+    var vertexFrontColorBuffer = [];
+
+
+    var timeNow = 0;
+    var teapotAngle = 0;
+    var csieAngle = 0;
+    var easterAngle = 0;
+    var lastTime    = 0;
+
+    var x_range = -6;
+    var y_range = 0;
+    var z_range = -20;
+    var xrange = 0;
+    var yrange = 0;
+    var zrange = -50;
+    var xshear = 0;
+    var yshear = 0;
+    var zshear = 0;
+    var x_shear = 0;
+    var y_shear = 0;
+    var z_shear = 0;
+    var x__shear = 0;
+    var y__shear = 0;
+    var z__shear = 0;
+    var kangaroo = 0;
+    var x__range = 8;
+    var y__range = -4.7;
+    var z__range = -25;
+    var easter = 0;
+    var csie = 0;
+    var i = 0;
+    var jump = -0.4;
+
+    var scalerange = 10.0;
+    var scale_range = 5.0;
+    var scale__range = 8.0;
+
+    var kr = false;
+    var er =false;
+    var cr = false;
+    function initGL(canvas) {
+        try {
+            gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+            gl.viewportWidth  = canvas.width;
+            gl.viewportHeight = canvas.height;
+        } 
+        catch (e) {
+        }
+
+        if (!gl) {
+            alert("Could not initialise WebGL, sorry :-(");
+        }
+         if (!gl.getExtension('OES_standard_derivatives')) {
+            throw 'extension not support';
+        }
+    }
+
+    function getShader(gl, id) {
+        var shaderScript = document.getElementById(id);
+        if (!shaderScript) {
+            return null;
+        }
+
+        var shaderSource = "";
+        var k = shaderScript.firstChild;
+        while (k) {
+            if (k.nodeType == 3) {
+                shaderSource += k.textContent;
+            }
+
+            k = k.nextSibling;
+        }
+
+        var shader;
+        if (shaderScript.type == "fragment") {
+            shader = gl.createShader(gl.FRAGMENT_SHADER);
+        } 
+        else if (shaderScript.type == "vertex") {
+            shader = gl.createShader(gl.VERTEX_SHADER);
+        } 
+        else {
+            return null;
+        }
+
+        gl.shaderSource(shader, shaderSource);
+        gl.compileShader(shader);
+
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            alert(gl.getShaderInfoLog(shader));
+            return null;
+        }
+
+        return shader;
+    }
+    var shaderprogram = [];
+
+    function initShaders(shadertype) {
+        //console.log(shadertype);
+        var fragmentShader = getShader(gl, shadertype+"_fragmentShader");
+        var vertexShader   = getShader(gl, shadertype+"_vertexShader");
+        //每一個program 綁定各一 vertex fragment
+        //要做不同的shading 同時表現就要不同的program
+        var shaderProgram = gl.createProgram();
+        gl.attachShader(shaderProgram, vertexShader);
+        gl.attachShader(shaderProgram, fragmentShader);
+        gl.linkProgram(shaderProgram);
+        //console.log(gl);
+
+        if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+            alert("Could not initialise shaders");
+        }
+
+        //gl.useProgram(shaderProgram);
+
+        shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+        gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
+        shaderProgram.vertexFrontColorAttribute = gl.getAttribLocation(shaderProgram, "aFrontColor");
+        gl.enableVertexAttribArray(shaderProgram.vertexFrontColorAttribute);
+        //抓前面宣告的normal 參數
+        shaderProgram.vertexNormalAttribute = gl.getAttribLocation(shaderProgram, "aVertexNormal");
+        gl.enableVertexAttribArray(shaderProgram.vertexNormalAttribute);
+
+        shaderProgram.pMatrixUniform  = gl.getUniformLocation(shaderProgram, "uPMatrix");
+        shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
+        shaderprogram.push(shaderProgram);
+        //console.log(shadertype, shaderprogram);
+    }
+
+    function setMatrixUniforms(itr) {
+        gl.uniformMatrix4fv(shaderprogram[itr].pMatrixUniform, false, pMatrix);
+        gl.uniformMatrix4fv(shaderprogram[itr].mvMatrixUniform, false, mvMatrix);
+    }
+
+    function degToRad(degrees) {
+        return degrees * Math.PI / 180;
+    }
+    //Teapot
+    function handleLoadedTeapot(teapotData) {
+        var teapotVertexPositionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexPositionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(teapotData.vertexPositions), gl.STATIC_DRAW);
+        teapotVertexPositionBuffer.itemSize = 3;
+        teapotVertexPositionBuffer.numItems = teapotData.vertexPositions.length / 3;
+        vertexPositionBuffer.push(teapotVertexPositionBuffer);
+
+
+        var teapotVertexNormalBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexNormalBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(teapotData.vertexNormals), gl.STATIC_DRAW);
+        teapotVertexNormalBuffer.itemSize = 3;
+        teapotVertexNormalBuffer.numItems = teapotData.vertexNormals.length / 3;
+        vertexNormalBuffer.push(teapotVertexNormalBuffer);
+
+        var teapotVertexFrontColorBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexFrontColorBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(teapotData.vertexFrontcolors), gl.STATIC_DRAW);
+        teapotVertexFrontColorBuffer.itemSize = 3;
+        teapotVertexFrontColorBuffer.numItems = teapotData.vertexFrontcolors.length / 3;
+        vertexFrontColorBuffer.push(teapotVertexFrontColorBuffer);
+
+        //console.log(vertexPositionBuffer);
+    }
+
+    function loadTeapot(filename,callback) {
+        //console.log(filename);
+        var request = new XMLHttpRequest();
+        request.open("GET", "./model/"+filename);
+        request.onreadystatechange = function () {
+            if (request.readyState == 4) {
+                handleLoadedTeapot(JSON.parse(request.responseText));
+                callback();
+            }
+        }
+        request.send();
+    }
+    /*
+        TODO HERE:
+        add two or more objects showing on the canvas
+        (it needs at least three objects showing at the same time)
+    */
+    //var shear = [mat4.create(), mat4.create(), mat4.create()];
+    function drawScene() {
+        gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        // ciseVertexPositionBuffer   == null || 
+        // ciseVertexNormalBuffer     == null || 
+        // ciseVertexFrontColorBuffer == null
+        for(var i = 0; i<3 ;i++){
+            if (vertexPositionBuffer[i]== null || vertexNormalBuffer[i] == null || vertexFrontColorBuffer[i] == null) {
+               // console.log("someone is null");
+                return;
+            } 
+
+        }
+
+        mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0, pMatrix);
+        for(var i =0; i<3; i++){
+            //console.log(i);
+            // console.log(shaderprogram[i]);
+            // Setup Projection Matrix
+            //gl.useProgram(shaderprogram[i]);
+            //mat4.identity(mvMatrix);
+            // Setup Model-View Matrix
+            //mnMatrix 設成identity
+            //但結果會先rotate 再 translate!!!!!!!!!!!!!!!!!!!
+            //webGL camera 0 0  0 to 0 0 -1 所以東西都要改在-z 的方向才看得到東西
+            if(i === 0){
+                gl.useProgram(shaderprogram[kangaroo]);
+                
+                mat4.identity(mvMatrix);
+                mat4.translate(mvMatrix, [x_range, y_range, z_range]);
+                //if(kr)
+                //mat4.translate(mvMatrix, [0,jump , 0]);
+                mat4.rotate(mvMatrix, degToRad(teapotAngle), [0, 1, 0]);
+                mat4.scale(mvMatrix, [scale_range, scale_range, scale_range]);
+                mat4.multiply(mvMatrix, [1,0, 0, 0, 
+                                        xshear, 1, zshear, 0, 
+                                        0, yshear, 1, 0,
+                                        0, 0, 0, 1]);
+                mat4.rotate(mvMatrix, degToRad(-90), [1,0,0]);
+                mat4.translate(mvMatrix, [0, -0.4, 0]);
+                setMatrixUniforms(kangaroo);
+                //console.log(mvMatrix);
+                
+            }
+            else if(i === 1){
+                gl.useProgram(shaderprogram[easter]);
+
+
+                mat4.identity(mvMatrix);
+                mat4.translate(mvMatrix, [xrange, yrange, zrange]);
+                //if(er)
+                    //csieAngle = 0;
+                mat4.rotate(mvMatrix, degToRad(easterAngle), [0, 1, 0]);
+                mat4.scale(mvMatrix, [scalerange, scalerange, scalerange]);
+                mat4.multiply(mvMatrix, [1, 0, 0, 0, 
+                                         x_shear, 1, z_shear, 0, 
+                                         0, y_shear, 1, 0,
+                                         0, 0, 0, 1]);
+                mat4.rotate(mvMatrix, degToRad(-90), [1, 0, 0]);
+                setMatrixUniforms(easter);
+                
+                //console.log(mvMatrix);
+                //mat4.translate(mvMatrix, [-2, 0, 0]);
+
+                //只能同時對一個軸旋轉
+            }
+            else if(i === 2){
+                gl.useProgram(shaderprogram[csie]);
+                
+                mat4.identity(mvMatrix);
+                mat4.translate(mvMatrix, [x__range, y__range, z__range]);
+                //if(cr)
+                mat4.rotate(mvMatrix, degToRad(csieAngle), [0, 1, 0]);
+                mat4.scale(mvMatrix, [scale__range, scale__range, scale__range]);
+                mat4.multiply(mvMatrix, [1, 0, 0, 0, 
+                                        x__shear, 1, z__shear, 0, 
+                                        0, y__shear, 1, 0,
+                                        0, 0, 0, 1]);
+                mat4.rotate(mvMatrix, degToRad(-90), [1, 0, 0]);
+                mat4.translate(mvMatrix, [-0.37, -0.4, 0]);
+                setMatrixUniforms(csie);
+                
+            }
+            //scale 用法
+            
+            //只有shear 需要自己寫！！
+            //test
+            //mat4.rotate(mvMatrix, degToRad(teapotAngle), [0, 1, 0]);
+            //mat4.translate(mvMatrix, [0, 0, -10]);
+
+            
+            //gl.useProgram(shaderprogram[1]);
+            // Setup teapot position data
+            // 不同的東西 Setup 就不同
+            gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer[i]);
+            gl.vertexAttribPointer(shaderprogram[i].vertexPositionAttribute, 
+                                   vertexPositionBuffer[i].itemSize, 
+                                   gl.FLOAT, 
+                                   false, 
+                                   0, 
+                                   0);
+
+            // Setup teapot front color data
+            gl.bindBuffer(gl.ARRAY_BUFFER, vertexFrontColorBuffer[i]);
+            gl.vertexAttribPointer(shaderprogram[i].vertexFrontColorAttribute, 
+                                   vertexFrontColorBuffer[i].itemSize, 
+                                   gl.FLOAT, 
+                                   false, 
+                                   0, 
+                                   0);
+
+            // Setup teapot vertexNormal data
+            gl.bindBuffer(gl.ARRAY_BUFFER, vertexNormalBuffer[i]);
+            gl.vertexAttribPointer(shaderprogram[i].vertexNormalAttribute, 
+                                   vertexNormalBuffer[i].itemSize, 
+                                   gl.FLOAT, 
+                                   false, 
+                                   0, 
+                                   0);
+            //gl.useProgram(shaderprogram[0]);
+            gl.drawArrays(gl.TRIANGLES, 0, vertexPositionBuffer[i].numItems);
+        }
+        
+    }
+    function move_x(){
+        xrange = document.getElementById("xtranslate").value;
+        //console.log(xrange);
+    }
+    function move_y(){
+        yrange = document.getElementById("ytranslate").value;
+        //console.log(xrange);
+    }
+    function move_z(){
+        zrange = document.getElementById("ztranslate").value;
+        //console.log(xrange);
+    }
+    function movex(){
+        x_range = document.getElementById("x_translate").value;
+        //console.log(xrange);
+    }
+    function movey(){
+        y_range = document.getElementById("y_translate").value;
+        //console.log(xrange);
+    }
+    function movez(){
+        z_range = document.getElementById("z_translate").value;
+        //console.log(xrange);
+    }
+    function shearx(){
+        xshear = document.getElementById("x_shear").value;
+        //console.log(xrange);
+    }
+    function sheary(){
+        yshear = document.getElementById("y_shear").value;
+        //console.log(xrange);
+    }
+    function shearz(){
+        zshear = document.getElementById("z_shear").value;
+        //console.log(xrange);
+    }
+    function shear_x(){
+        x_shear = document.getElementById("xshear").value;
+        //console.log(xrange);
+    }
+    function shear_y(){
+        y_shear = document.getElementById("yshear").value;
+        //console.log(xrange);
+    }
+    function shear_z(){
+        z_shear = document.getElementById("zshear").value;
+        //console.log(xrange);
+    }
+    function shear__x(){
+        x__shear = document.getElementById("x__shear").value;
+        //console.log(xrange);
+    }
+    function shear__y(){
+        y__shear = document.getElementById("y__shear").value;
+        //console.log(xrange);
+    }
+    function shear__z(){
+        z__shear = document.getElementById("z__shear").value;
+        //console.log(xrange);
+    }
+    function move__x(){
+        x__range = document.getElementById("x__translate").value;
+        console.log(x__range);
+    }
+    function move__y(){
+        y__range = document.getElementById("y__translate").value;
+        //console.log(xrange);
+    }
+    function move__z(){
+        z__range = document.getElementById("z__translate").value;
+        //console.log(xrange);
+    }
+    function scalex(){
+        scale_range = document.getElementById("kscale").value;
+        //console.log(xrange);
+    }
+    function scale_x(){
+        scalerange = document.getElementById("scale").value;
+        //console.log(xrange);
+    }
+    function scale__x(){
+        scale__range = document.getElementById("cscale").value;
+        //console.log(xrange);
+    }
+    function Kangarooshading(){
+        kangaroo = document.getElementById("Kangarooshading").value;
+        kangaroo = Number(kangaroo);
+        //console.log(typeof kangaroo, kangaroo);
+    }
+    function Eastershading(){
+        easter = document.getElementById("Eastershading").value;
+        easter = Number(easter);
+        //console.log(typeof easter, easter);
+    }
+    function Csieshading(){
+        csie = document.getElementById("Csieshading").value;
+        csie = Number(csie);
+        //console.log(typeof csie, csie);
+    }
+    function Kanrotate(){
+        kr = document.getElementById("check1").checked;
+        //kr = Number(kr);
+        console.log(typeof kr, kr);
+    }
+    function Easrotate(){
+        er = document.getElementById("check2").checked;
+        //er = Number(er);
+        console.log(typeof er, er);
+    }
+    function Csirotate(){
+        cr = document.getElementById("check3").checked;
+        //cr = Number(cr);
+        console.log(typeof cr, cr);
+    }
+
+    //所以一直旋轉
+    function animate() {
+            i++;
+        //console.log(timeNow,lastTime);
+            timeNow = new Date().getTime();
+            if (lastTime != 0) {
+                var elapsed = timeNow - lastTime;
+                if(i % 4 == 0)
+                    jump += 0.03*elapsed;
+                if(i % 4 == 1)
+                    jump -= 0.03*elapsed;
+                if(kr)
+                    teapotAngle += 0.03 * elapsed;
+                if(er)
+                    easterAngle += 0.03 * elapsed;
+                if(cr)
+                    csieAngle += 0.03 * elapsed;
+            }
+            console.log(i, jump);
+            lastTime = timeNow;
+    }
+
+    function tick() {
+        requestAnimFrame(tick);
+        drawScene();
+        animate();
+    }
+
+    function webGLStart() {
+        var canvas = document.getElementById("ICG-canvas");
+        initGL(canvas);
+        initShaders("flat");
+        initShaders("gouraud");
+        initShaders("phong");
+        //console.log(shaderprogram[1]);
+        //console.log(shaderprogram[0]);
+        loadTeapot("Kangaroo.json",function(){
+            loadTeapot("Easter.json",function(){
+                loadTeapot("Csie.json", function(){});
+            });
+        });
+        
+        //console.log(vertexPositionBuffer[0]);
+        
+        
+        //loadTeapot("Teapot.json");
+
+        gl.clearColor(0.0, 0.2, 0.2, 1.0);
+        gl.enable(gl.DEPTH_TEST);
+
+        tick();
+    }
+</script>
+</head>
+
+<body onload="webGLStart();">
+    <canvas id="ICG-canvas" style="border: none;" width="800" height="480"></canvas>
+    <br/>
+    <div style="width: 800;">
+    <label >Kangaroo x_translate:</label>
+    <input type="range" id="x_translate" min="-16" max="4" onchange="movex()">
+    <label >y_translate:</label>
+    <input type="range" id="y_translate" min="-10" max="10" onchange="movey()">
+    <label >z_translate:</label>
+    <input type="range" id="z_translate" min="-40" max="0" onchange="movez()">
+    <br/>
+    <label >x_shear:</label>
+    <input type="range" id="x_shear" min="-5" max="5" onchange="shearx()">
+    <label >y_shear:</label>
+    <input type="range" id="y_shear" min="-5" max="5" onchange="sheary()">
+    <label >z_shear:</label>
+    <input type="range" id="z_shear" min="-5" max="5" onchange="shearz()">
+    <br/>
+    <label >Easter x_translate:</label>
+    <input type="range" id="xtranslate" min="-10" max="10" onchange="move_x()">
+    <label >y_translate:</label>
+    <input type="range" id="ytranslate" min="-10" max="10" onchange="move_y()">
+    <label >z_translate:</label>
+    <input type="range" id="ztranslate" min="-70" max="-30" onchange="move_z()">
+     <br/>
+    <label >x_shear:</label>
+    <input type="range" id="xshear" min="-5" max="5" onchange="shear_x()">
+    <label >y_shear:</label>
+    <input type="range" id="yshear" min="-5" max="5" onchange="shear_y()">
+    <label >z_shear:</label>
+    <input type="range" id="zshear" min="-5" max="5" onchange="shear_z()">
+    <br/>
+    <label >Csie x_translate:</label>
+    <input type="range" id="x__translate" min="-2" max="18" onchange="move__x()">
+    <label >y_translate:</label>
+    <input type="range" id="y__translate" min="-14.7" max="5.3" onchange="move__y()">
+    <label >z_translate:</label>
+    <input type="range" id="z__translate" min="-45" max="-5" onchange="move__z()">
+    <br/>
+    <label >x_shear:</label>
+    <input type="range" id="x__shear" min="-5" max="5" onchange="shear__x()">
+    <label >y_shear:</label>
+    <input type="range" id="y__shear" min="-5" max="5" onchange="shear__y()">
+    <label >z_shear:</label>
+    <input type="range" id="z__shear" min="-5" max="5" onchange="shear__z()">
+
+    <br/>
+
+    <label >Kangaroo scale:</label>
+    <input type="range" id="kscale" min="0" max="10" onchange="scalex()">
+    <label >Easter scale:</label>
+    <input type="range" id="scale" min="0" max="20" onchange="scale_x()">
+    <label >Csie scale:</label>
+    <input type="range" id="cscale" min="0" max="16" onchange="scale__x()">
+    <br/>
+    <label >Kangaroo shading:</label>
+
+    <select id="Kangarooshading" onchange="Kangarooshading()">
+      <option value="0">flat</option>
+      <option value="1">gourand</option>
+      <option value="2">phong</option>
+    </select>
+    <br/>
+    <label >Easter shading:</label>
+
+    <select id="Eastershading" onchange="Eastershading()">
+      <option value="0">flat</option>
+      <option value="1">gourand</option>
+      <option value="2">phong</option>
+    </select>
+
+    <br/>
+    <label >Csie shading:</label>
+
+    <select id="Csieshading" onchange="Csieshading()">
+      <option value="0">flat</option>
+      <option value="1">gourand</option>
+      <option value="2">phong</option>
+    </select>
+    <br/>
+    <label >Rotate:</label>
+    <br/>
+    <input type="checkbox" id="check1"  onchange="Kanrotate()">
+    <label >Kangaroo</label><br>
+    <input type="checkbox" id="check2"  onchange="Easrotate()">
+    <label >Easter</label><br>
+    <input type="checkbox" id="check3"  onchange="Csirotate()">
+    <label >Csie</label><br><br>
+    </div>
+</body>
+
+</html>
