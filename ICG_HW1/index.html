@@ -217,6 +217,97 @@
 
     }
 </script>
+<script id="toon_fragmentShader" type="fragment">
+    #extension GL_OES_standard_derivatives : enable
+    
+    precision mediump float;
+    //varying vec4 fragcolor;
+    varying vec4 vFrontColor;
+    varying vec3 vVertexNormal;
+    varying vec4 objectpos;
+
+    varying mat3 umvmatrix;
+
+    void main(void) {
+        vec3 light = vec3(5, 0, -1);
+        vec3 light2 = vec3(30, 20 , -25); 
+        vec3 light3 = vec3(-30, 20, -25);
+        vec3 lightColor = vec3(1.0, 1.0, 1.0);
+        //vec3 mvVertex = (uMVMatrix * vec4(aVertexPosition, 1.0)).xyz;
+        //mat3 normalMatrix = mat3(uMVMatrix);
+        //vec3 mvNormal = normalMatrix * aVertexNormal;
+        //normal 
+
+        vec3 N = normalize(umvmatrix * vVertexNormal);
+        vec3 L = normalize(light- objectpos.xyz);
+        vec3 H = normalize(light- objectpos.xyz - objectpos.xyz);
+
+        vec3 L2 = normalize(light2- objectpos.xyz);
+        vec3 H2 = normalize(light2- objectpos.xyz - objectpos.xyz);
+
+        vec3 L3 = normalize(light3- objectpos.xyz);
+        vec3 H3 = normalize(light3- objectpos.xyz - objectpos.xyz);
+
+        //vec3 flatshading = vec3(0.0);
+        float ka = 0.1;
+        float kd = 0.6;
+        float ks = 0.3;
+        vec3 ambient = lightColor * ka;
+        float cos = max(0.0, dot(L,N));
+        vec3 diffuse = lightColor * kd * cos;
+        float cosAlpha = max(0.0, dot(H,N));
+        vec3 specular = lightColor * ks * pow(cosAlpha, 16.0);
+        if(dot(L, N) < 0.0){
+            specular = vec3(0.0);
+        }
+
+        float cos2 = max(0.0, dot(L2,N));
+        vec3 diffuse2 = lightColor * kd * cos2;
+        float cosAlpha2 = max(0.0, dot(H2,N));
+        vec3 specular2 = lightColor * ks * pow(cosAlpha2, 16.0);
+        if(dot(L2, N) < 0.0){
+            specular2 = vec3(0.0);
+        }
+        float cos3 = max(0.0, dot(L3,N));
+        vec3 diffuse3 = lightColor * kd * cos3;
+        float cosAlpha3 = max(0.0, dot(H3,N));
+        vec3 specular3 = lightColor * ks * pow(cosAlpha3, 16.0);
+        if(dot(L3, N) < 0.0){
+            specular3 = vec3(0.0);
+        }
+        //flatshading = vFrontColor*(ambient + diffuse + specular + diffuse2 + specular2); 
+
+        
+        gl_FragColor = vec4(ceil(vFrontColor.rgb*(ambient + diffuse + specular+ diffuse2 + specular2 + diffuse3 + specular3) *5.0)/5.0, vFrontColor.a);
+        //
+    }
+</script>
+
+
+<script id="toon_vertexShader" type="vertex">
+    attribute vec3 aVertexPosition;
+    attribute vec4 aFrontColor;
+    attribute vec3 aVertexNormal;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+    
+    //varying vec4 fragcolor;
+    varying vec4 vFrontColor;
+    varying vec4 objectpos;
+    varying vec3 vVertexNormal;
+    varying mat3 umvmatrix;
+
+    void main(void) {
+        //gl_FragColor = fragcolor;
+        objectpos = uMVMatrix * vec4(aVertexPosition, 1.0);
+        gl_Position = uPMatrix * objectpos;
+        vFrontColor = aFrontColor;
+        vVertexNormal = aVertexNormal;
+        umvmatrix = mat3(uMVMatrix);
+
+    }
+</script>
 
 
 
@@ -309,6 +400,8 @@
     var mvMatrix = mat4.create();
     var pMatrix  = mat4.create();
 
+    var lastRotateMatrix = [mat4.create(), mat4.create(), mat4.create()];
+
     var vertexPositionBuffer = [];
     var vertexNormalBuffer = [];
     var vertexFrontColorBuffer = [];
@@ -336,7 +429,7 @@
     var y__shear = 0;
     var z__shear = 0;
     var kangaroo = 0;
-    var x__range = 8;
+    var x__range = 9.2;
     var y__range = -4.7;
     var z__range = -25;
     var easter = 0;
@@ -351,6 +444,17 @@
     var kr = false;
     var er =false;
     var cr = false;
+    var kj = false;
+
+    var ka = 1;
+    var ea = 1;
+    var ca = 1;
+
+    var rotateIndex = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    var lastAxes = [1, 1, 1];
+    var axes = [1, 1, 1]; // rotated axis. (0: x, 1: y, 2: z)
+    var angles = [0.0, 0.0, 0.0];
+
     function initGL(canvas) {
         try {
             gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
@@ -486,6 +590,13 @@
         }
         request.send();
     }
+
+    function initrotate(){
+        for(var i = 0; i < 3; i++){
+            mat4.identity(lastRotateMatrix[i]);
+            mat4.rotate(lastRotateMatrix[i], degToRad(0), rotateIndex[1]);
+        }
+    }
     /*
         TODO HERE:
         add two or more objects showing on the canvas
@@ -524,15 +635,19 @@
                 mat4.identity(mvMatrix);
                 mat4.translate(mvMatrix, [x_range, y_range, z_range]);
                 //if(kr)
-                //mat4.translate(mvMatrix, [0,jump , 0]);
-                mat4.rotate(mvMatrix, degToRad(teapotAngle), [0, 1, 0]);
+                mat4.translate(mvMatrix, [0,jump , 0]);
+                mat4.multiply(mvMatrix, lastRotateMatrix[0]); // rotate
+                mat4.rotate(mvMatrix, degToRad(angles[0]), rotateIndex[axes[0]]);
+                console.log(angles[0], rotateIndex[axes[0]]); // rotate animation
+                //mat4.rotate(mvMatrix, degToRad(teapotAngle), [0, 1, 0]);
                 mat4.scale(mvMatrix, [scale_range, scale_range, scale_range]);
                 mat4.multiply(mvMatrix, [1,0, 0, 0, 
                                         xshear, 1, zshear, 0, 
                                         0, yshear, 1, 0,
                                         0, 0, 0, 1]);
+                //mat4.rotate(mvMatrix, degToRad(10), [0,1,0]);
                 mat4.rotate(mvMatrix, degToRad(-90), [1,0,0]);
-                mat4.translate(mvMatrix, [0, -0.4, 0]);
+                mat4.translate(mvMatrix, [0, -0.4, 0.2]);
                 setMatrixUniforms(kangaroo);
                 //console.log(mvMatrix);
                 
@@ -545,7 +660,10 @@
                 mat4.translate(mvMatrix, [xrange, yrange, zrange]);
                 //if(er)
                     //csieAngle = 0;
-                mat4.rotate(mvMatrix, degToRad(easterAngle), [0, 1, 0]);
+                mat4.multiply(mvMatrix, lastRotateMatrix[1]); // rotate
+                mat4.rotate(mvMatrix, degToRad(angles[1]), rotateIndex[axes[1]]);
+                //mat4.rotate(mvMatrix, degToRad(easterAngle), [0, 1, 0]);
+                console.log(angles[1], rotateIndex[axes[1]]);
                 mat4.scale(mvMatrix, [scalerange, scalerange, scalerange]);
                 mat4.multiply(mvMatrix, [1, 0, 0, 0, 
                                          x_shear, 1, z_shear, 0, 
@@ -565,7 +683,10 @@
                 mat4.identity(mvMatrix);
                 mat4.translate(mvMatrix, [x__range, y__range, z__range]);
                 //if(cr)
-                mat4.rotate(mvMatrix, degToRad(csieAngle), [0, 1, 0]);
+                //mat4.rotate(mvMatrix, degToRad(csieAngle), [0, 1, 0]);
+                mat4.multiply(mvMatrix, lastRotateMatrix[2]); // rotate
+                mat4.rotate(mvMatrix, degToRad(angles[2]), rotateIndex[axes[2]]);
+                console.log(angles[2], rotateIndex[axes[2]]);
                 mat4.scale(mvMatrix, [scale__range, scale__range, scale__range]);
                 mat4.multiply(mvMatrix, [1, 0, 0, 0, 
                                         x__shear, 1, z__shear, 0, 
@@ -706,6 +827,24 @@
         kangaroo = Number(kangaroo);
         //console.log(typeof kangaroo, kangaroo);
     }
+    function Kangarooaxis(){
+        ka = document.getElementById("Axis").value;
+        axes[0] = Number(ka) -1;
+        //console.log(axes[0]);
+        //console.log(typeof kangaroo, kangaroo);
+    }
+    function Easteraxis(){
+        ea = document.getElementById("Axis2").value;
+        axes[1] = Number(ea) -1;
+        //console.log(axes[1]);
+        //console.log(typeof kangaroo, kangaroo);
+    }
+    function Csieaxis(){
+        ca = document.getElementById("Axis3").value;
+        axes[2] = Number(ca) -1;
+        //console.log(axes[1]);
+        //console.log(typeof kangaroo, kangaroo);
+    }
     function Eastershading(){
         easter = document.getElementById("Eastershading").value;
         easter = Number(easter);
@@ -719,39 +858,74 @@
     function Kanrotate(){
         kr = document.getElementById("check1").checked;
         //kr = Number(kr);
-        console.log(typeof kr, kr);
+        //console.log(typeof kr, kr);
     }
     function Easrotate(){
         er = document.getElementById("check2").checked;
         //er = Number(er);
-        console.log(typeof er, er);
+        //console.log(typeof er, er);
     }
     function Csirotate(){
         cr = document.getElementById("check3").checked;
         //cr = Number(cr);
-        console.log(typeof cr, cr);
+        //console.log(typeof cr, cr);
+    }
+    function Kangaroojump(){
+        kj = document.getElementById("check4").checked;
+        //er = Number(er);
+        //console.log(typeof er, er);
     }
 
     //所以一直旋轉
     function animate() {
-            i++;
+            //i++;
         //console.log(timeNow,lastTime);
-            timeNow = new Date().getTime();
-            if (lastTime != 0) {
-                var elapsed = timeNow - lastTime;
-                if(i % 4 == 0)
+        timeNow = new Date().getTime();
+        if (lastTime != 0) {
+            var elapsed = timeNow - lastTime;
+            //for (var c = 0; c < 3; c++) {
+            //}
+            //var elapsed2 = (timeNow - lastTime)
+            if(kj)
+            {
+                i++;
+                if(i % 15 == 0)
                     jump += 0.03*elapsed;
-                if(i % 4 == 1)
+                if(i % 15 == 8)
                     jump -= 0.03*elapsed;
-                if(kr)
-                    teapotAngle += 0.03 * elapsed;
-                if(er)
-                    easterAngle += 0.03 * elapsed;
-                if(cr)
-                    csieAngle += 0.03 * elapsed;
             }
-            console.log(i, jump);
-            lastTime = timeNow;
+            if(kr)
+            {
+                if (lastAxes[0] != axes[0]) {
+                    mat4.rotate(lastRotateMatrix[0], degToRad(angles[0]), rotateIndex[lastAxes[0]]);
+                    lastAxes[0] = axes[0];
+                    angles[0] = 0.0;
+                }
+                angles[0] += 0.03 * elapsed;
+                if (angles[0] > 360.0) angles[0] -= 360.0;
+            }
+            if(er)
+            {
+                if (lastAxes[1] != axes[1]) {
+                    mat4.rotate(lastRotateMatrix[1], degToRad(angles[1]), rotateIndex[lastAxes[1]]);
+                    lastAxes[1] = axes[1];
+                    angles[1] = 0.0;
+                }
+                angles[1] += 0.03 * elapsed;
+                if (angles[1] > 360.0) angles[1] -= 360.0;
+            }
+            if(cr){
+                if (lastAxes[2] != axes[2]) {
+                    mat4.rotate(lastRotateMatrix[2], degToRad(angles[2]), rotateIndex[lastAxes[2]]);
+                    lastAxes[2] = axes[2];
+                    angles[2] = 0.0;
+                }
+                angles[2] += 0.03 * elapsed;
+                if (angles[2] > 360.0) angles[2] -= 360.0;
+            }
+        }
+        //console.log(i, jump);
+        lastTime = timeNow;
     }
 
     function tick() {
@@ -766,6 +940,7 @@
         initShaders("flat");
         initShaders("gouraud");
         initShaders("phong");
+        initShaders("toon");
         //console.log(shaderprogram[1]);
         //console.log(shaderprogram[0]);
         loadTeapot("Kangaroo.json",function(){
@@ -781,7 +956,7 @@
 
         gl.clearColor(0.0, 0.2, 0.2, 1.0);
         gl.enable(gl.DEPTH_TEST);
-
+        initrotate();
         tick();
     }
 </script>
@@ -820,7 +995,7 @@
     <input type="range" id="zshear" min="-5" max="5" onchange="shear_z()">
     <br/>
     <label >Csie x_translate:</label>
-    <input type="range" id="x__translate" min="-2" max="18" onchange="move__x()">
+    <input type="range" id="x__translate" min="0" max="20" onchange="move__x()">
     <label >y_translate:</label>
     <input type="range" id="y__translate" min="-14.7" max="5.3" onchange="move__y()">
     <label >z_translate:</label>
@@ -848,6 +1023,7 @@
       <option value="0">flat</option>
       <option value="1">gourand</option>
       <option value="2">phong</option>
+      <option value="3">toon</option>
     </select>
     <br/>
     <label >Easter shading:</label>
@@ -856,6 +1032,7 @@
       <option value="0">flat</option>
       <option value="1">gourand</option>
       <option value="2">phong</option>
+      <option value="3">toon</option>
     </select>
 
     <br/>
@@ -865,16 +1042,41 @@
       <option value="0">flat</option>
       <option value="1">gourand</option>
       <option value="2">phong</option>
+      <option value="3">toon</option>
     </select>
     <br/>
     <label >Rotate:</label>
     <br/>
     <input type="checkbox" id="check1"  onchange="Kanrotate()">
-    <label >Kangaroo</label><br>
+    <label >Kangaroo</label>  
+    <select id="Axis" onchange="Kangarooaxis()">
+      <option value="0">change axis</option>
+      <option value="1">x</option>
+      <option value="2">y</option>
+      <option value="3">z</option>
+    </select>
+    <br/>
     <input type="checkbox" id="check2"  onchange="Easrotate()">
-    <label >Easter</label><br>
+    <label >Easter</label>
+    <select id="Axis2" onchange="Easteraxis()">
+      <option value="0">change axis</option>
+      <option value="1">x</option>
+      <option value="2">y</option>
+      <option value="3">z</option>
+    </select>
+    <br>
     <input type="checkbox" id="check3"  onchange="Csirotate()">
-    <label >Csie</label><br><br>
+    <label >Csie</label>
+    <select id="Axis3" onchange="Csieaxis()">
+      <option value="0">change axis</option>
+      <option value="1">x</option>
+      <option value="2">y</option>
+      <option value="3">z</option>
+    </select>
+    <br/>
+    <label>Animation:</label>
+    <input type="checkbox" id="check4" onchange="Kangaroojump()">
+    <label >Kangaroo Jump</label><br><br>
     </div>
 </body>
 
