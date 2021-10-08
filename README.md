@@ -1,10 +1,11 @@
 # Computer Graphics 2020 Spring
 
-## Course Project for NTU Computer Vision (prof. Ming Ouhyoung)
+## WEBGL Project for NTU Computer Vision (prof. Ming Ouhyoung)
 
 ## Built With
 
-- Python
+- HTML
+- JAVASCRIPT
 
 ## Author
 
